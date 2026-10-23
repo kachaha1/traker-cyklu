@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tracker Cyklu — dzienniczek i prognoza</title>
+<style>
+  :root{
+    --bg1:#fff5f8; --bg2:#f5f2ff;
+    --card:#ffffff;
+    --primary:#d6336c; --primary-dark:#b02a58;
+    --text:#2b2430; --muted:#8a7f8f;
+    --border:#f0dfe6; --border2:#e8e2f0;
+    --ok:#2f9e44; --danger:#e03131; --warn:#e8590c;
+    --shadow:0 4px 20px rgba(180,120,160,.10);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+    background:linear-gradient(180deg,var(--bg1) 0%, var(--bg2) 100%);
+    background-attachment:fixed;
+    color:var(--text);
+    min-height:100vh;
+    padding:24px 16px 70px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{max-width:920px;margin:0 auto;}
+
+  /* ---------- Nagłówek ---------- */
+  .hero{text-align:center;margin-bottom:22px;}
+  .hero h1{margin:0 0 6px;font-size:26px;letter-spacing:-.4px;}
+  .hero p{margin:0;color:var(--muted);font-size:14px;}
+
+  /* ---------- Zakładki ---------- */
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:22px;}
+  .tab{
+    border:1px solid var(--border);background:#fff;color:var(--muted);
+    padding:9px 16px;border-radius:999px;font-size:13.5px;font-weight:600;
+    cursor:pointer;transition:.18s;font-family:inherit;
+  }
+  .tab:hover{color:var(--primary);border-color:#f3c7d7;}
+  .tab.active{background:var(--primary);border-color:var(--primary);color:#fff;box-shadow:0 4px 14px rgba(214,51,108,.28);}
+
+  /* ---------- Panele / karty ---------- */
+  .panel{display:none;animation:fade .22s ease;}
+  .panel.active{display:block;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+
+  .card{
+    background:var(--card);border:1px solid var(--border);border-radius:18px;
+    padding:20px 22px;margin-bottom:16px;box-shadow:var(--shadow);
+  }
+  .card h2{margin:0 0 14px;font-size:17px;letter-spacing:-.2px;}
+  .card h3{margin:0 0 10px;font-size:15px;}
+  .card.highlight{
+    background:linear-gradient(135deg,#fff0f5 0%, #f5f0ff 100%);
+    border-color:#f6d3e0;
+  }
+  .muted{color:var(--muted);}
+  .small{font-size:12.5px;line-height:1.6;}
+  .empty{color:var(--muted);font-size:14px;margin:8px 0;}
+
+  /* ---------- Formularz ---------- */
+  label{display:block;font-size:13px;font-weight:600;color:#5c5163;margin-bottom:14px;}
+  input[type=date],select,textarea{
+    display:block;width:100%;margin-top:6px;padding:10px 12px;
+    border:1px solid var(--border2);border-radius:11px;font-size:14px;
+    font-family:inherit;color:var(--text);background:#fdfbfd;transition:.15s;
+  }
+  input[type=date]:focus,select:focus,textarea:focus{
+    outline:none;border-color:var(--primary);background:#fff;
+    box-shadow:0 0 0 3px rgba(214,51,108,.10);
+  }
+  textarea{resize:vertical;line-height:1.5;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:560px){.grid2{grid-template-columns:1fr;}}
+
+  fieldset{border:none;padding:0;margin:0 0 16px;}
+  legend{font-size:13px;font-weight:600;color:#5c5163;margin-bottom:8px;padding:0;}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip{position:relative;display:inline-block;margin:0;}
+  .chip input{position:absolute;opacity:0;pointer-events:none;}
+  .chip span{
+    display:inline-block;padding:6px 13px;border-radius:999px;
+    border:1px solid var(--border2);background:#fff;font-size:12.5px;
+    font-weight:500;color:#6a5f72;cursor:pointer;user-select:none;transition:.15s;
+  }
+  .chip span:hover{border-color:#f3c7d7;}
+  .chip input:checked + span{background:var(--primary);border-color:var(--primary);color:#fff;}
+
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    padding:10px 18px;border-radius:11px;border:1px solid var(--border2);
+    background:#fff;color:var(--text);font-size:14px;font-weight:600;
+    cursor:pointer;font-family:inherit;transition:.16s;
+  }
+  .btn:hover{background:#faf7fc;}
+  .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff;}
+  .btn.primary:hover{background:var(--primary-dark);border-color:var(--primary-dark);}
+  .btn.ghost{background:transparent;color:var(--muted);}
+  .btn.danger{background:#fff;border-color:#ffc9c9;color:var(--danger);}
+  .btn.danger:hover{background:#fff5f5;}
+  .btn.small{padding:6px 12px;font-size:12.5px;border-radius:9px;}
+  .file-btn{cursor:pointer;}
+
+  .msg{margin:12px 0 0;font-size:13px;font-weight:600;min-height:18px;}
+  .msg.ok{color:var(--ok);}
+  .msg.error{color:var(--danger);}
+  .msg.warn{color:var(--warn);}
+
+  /* ---------- Historia ---------- */
+  .cycle-item{
+    display:flex;gap:14px;justify-content:space-between;align-items:flex-start;
+    padding:14px 0;border-bottom:1px solid var(--border);
+  }
+  .cycle-item:last-child{border-bottom:none;padding-bottom:2px;}
+  .cycle-date{font-weight:700;font-size:14.5px;margin-bottom:6px;}
+  .cycle-meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;}
+  .badge{
+    font-size:11.5px;background:#fdf0f5;color:var(--primary-dark);
+    padding:3px 9px;border-radius:999px;font-weight:600;
+  }
+  .cycle-symptoms{font-size:12.5px;color:var(--muted);margin-bottom:4px;}
+  .cycle-notes{font-size:12.5px;color:var(--muted);font-style:italic;line-height:1.5;}
+  .cycle-actions{display:flex;gap:6px;flex-shrink:0;}
+
+  /* ---------- Statystyki ---------- */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
+  @media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr);}}
+  .stat{
+    background:#fff;border:1px solid var(--border);border-radius:16px;
+    padding:16px 12px;text-align:center;box-shadow:var(--shadow);
+    display:flex;flex-direction:column;gap:6px;
+  }
+  .stat-value{font-size:26px;font-weight:800;color:var(--primary);letter-spacing:-1px;}
+  .stat-label{font-size:11.5px;color:var(--muted);line-height:1.35;}
+
+  /* ---------- Tabela ---------- */
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:560px;}
+  th{
+    text-align:left;padding:9px 10px;font-size:11.5px;text-transform:uppercase;
+    letter-spacing:.5px;color:var(--muted);border-bottom:2px solid var(--border);
+    white-space:nowrap;
+  }
+  td{padding:11px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#fdfaff;}
+
+  code{
+    background:#f7f2fa;padding:2px 6px;border-radius:5px;
+    font-size:12.5px;font-family:ui-monospace,Menlo,Consolas,monospace;
+  }
+  footer{text-align:center;color:var(--muted);font-size:12px;margin-top:26px;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="hero">
+    <h1>🌸 Tracker Cyklu</h1>
+    <p>Zapisuj cykle, importuj historię i poznaj prognozę na kolejne miesiące.</p>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="add">➕ Nowy cykl</button>
+    <button class="tab" data-tab="history">📋 Historia</button>
+    <button class="tab" data-tab="forecast">🔮 Prognoza</button>
+    <button class="tab" data-tab="data">💾 Import / Eksport</button>
+  </nav>
+
+  <!-- ============ DODAWANIE ============ -->
+  <section class="panel active" id="panel-add">
+    <div class="card">
+      <h2 id="formTitle">Dodaj nowy cykl</h2>
+      <form id="cycleForm" novalidate>
+        <div class="grid2">
+          <label>Data rozpoczęcia *
+            <input type="date" id="startDate" required>
+          </label>
+          <label>Data zakończenia
+            <input type="date" id="endDate">
+          </label>
+        </div>
+
+        <label>Intensywność krwawienia
+          <select id="flow">
+            <option value="">— wybierz —</option>
+            <option value="lekki">Lekki</option>
+            <option value="średni">Średni</option>
+            <option value="obfity">Obfity</option>
+          </select>
+        </label>
+
+        <fieldset>
+          <legend>Objawy</legend>
+          <div class="chips" id="symptomChips"></div>
+        </fieldset>
+
+        <label>Notatki
+          <textarea id="notes" rows="3" placeholder="Np. ból pleców, stres, leki, samopoczucie…"></textarea>
+        </label>
+
+        <div class="actions">
+          <button type="submit" class="btn primary">Zapisz cykl</button>
+          <button type="button" class="btn ghost" id="cancelEdit" hidden>Anuluj edycję</button>
+        </div>
+        <p class="msg" id="formMsg"></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ HISTORIA ============ -->
+  <section class="panel" id="panel-history">
+    <div class="card">
+      <h2>Historia cykli</h2>
+      <p class="muted small" id="historyCount"></p>
+      <div id="historyList"></div>
+    </div>
+  </section>
+
+  <!-- ============ PROGNOZA ============ -->
+  <section class="panel" id="panel-forecast">
+    <div id="forecastContent"></div>
+  </section>
+
+  <!-- ============ DANE ============ -->
+  <section class="panel" id="panel-data">
+    <div class="card">
+      <h2>📥 Import danych z przeszłości</h2>
+      <p class="muted small">
+        Wklej daty — <strong>jedna linia = jeden cykl</strong>. Obsługiwane formaty:
+        <code>2024-01-05</code>, <code>05.01.2024</code>, <code>5/1/2024</code>.
+        Możesz podać samą datę rozpoczęcia albo start i koniec oddzielone przecinkiem/średnikiem, np.
+        <code>2024-01-05, 2024-01-10, obfity</code>.
+        Duplikaty (ta sama data rozpoczęcia) zostaną pominięte.
+      </p>
+      <textarea id="importText" rows="7" placeholder="2024-01-05, 2024-01-10, obfity&#10;2024-02-02, 2024-02-07&#10;2024-03-01&#10;2024-03-30, 2024-04-03, lekki"></textarea>
+      <div class="actions">
+        <button class="btn primary" id="importBtn">Importuj dane</button>
+        <label class="btn ghost file-btn">📁 Wgraj plik (CSV / JSON / TXT)
+          <input type="file" id="fileInput" accept=".csv,.json,.txt,text/plain" hidden>
+        </label>
+      </div>
+      <p class="msg" id="importMsg"></p>
+    </div>
+
+    <div class="card">
+      <h2>📤 Eksport</h2>
+      <p class="muted small">Zrób kopię zapasową albo przenieś dane na inne urządzenie.</p>
+      <div class="actions">
+        <button class="btn" id="exportJson">Pobierz JSON</button>
+        <button class="btn" id="exportCsv">Pobierz CSV</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>⚠️ Strefa zagrożenia</h2>
+      <p class="muted small">Usuwa wszystkie cykle zapisane w tej przeglądarce. Operacji nie da się cofnąć.</p>
+      <div class="actions">
+        <button class="btn danger" id="clearAll">Usuń wszystkie dane</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    🔒 Wszystkie dane przechowywane są wyłącznie lokalnie w Twojej przeglądarce (localStorage).<br>
+    Aplikacja ma charakter poglądowy i nie zastępuje konsultacji medycznej.
+  </footer>
+</div>
+
+<script>
+/* =====================================================================
+   STAŁE I STAN
+   ===================================================================== */
+const STORAGE_KEY = 'tracker_cyklu_v1';
+const MS_DAY = 86400000;
+const SYMPTOMS = [
+  'Skurcze','Ból głowy','Zmęczenie','Wzdęcia','Tkliwość piersi',
+  'Trądzik','Nudności','Wahania nastroju','Ból pleców','Zawroty głowy'
+];
+const FLOW_MAP = {
+  'lekki':'lekki','lekko':'lekki','mały':'lekki','maly':'lekki',
+  'średni':'średni','sredni':'średni','normalny':'średni',
+  'obfity':'obfity','duży':'obfity','duzy':'obfity','mocny':'obfity'
+};
+
+let state = { cycles: [] };
+let editingId = null;
+
+/* =====================================================================
+   NARZĘDZIA DAT
+   ===================================================================== */
+function parseISO(s){ const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); }
+function toISO(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
+function daysBetween(a,b){ return Math.round((parseISO(b) - parseISO(a)) / MS_DAY); }
+function addDays(iso, n){ const d = parseISO(iso); d.setDate(d.getDate()+n); return toISO(d); }
+function fmt(iso){
+  if(!iso) return '—';
+  return parseISO(iso).toLocaleDateString('pl-PL',{day:'2-digit',month:'2-digit',year:'numeric'});
+}
+function todayISO(){ return toISO(new Date()); }
+
+function plural(n, one, few, many){
+  if (n === 1) return one;
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 >= 2 && m10 <= 4 && !(m100 >= 12 && m100 <= 14)) return few;
+  return many;
+}
+
+/* Elastyczne parsowanie daty z tekstu */
+function parseDateStr(s){
+  if (!s) return null;
+  s = String(s).trim();
+  let m;
+  // YYYY-MM-DD / YYYY.MM.DD / YYYY/MM/DD
+  m = s.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$/);
+  if (m) return validISO(+m[1], +m[2], +m[3]);
+  // DD.MM.YYYY / DD-MM-YYYY / DD/MM/YYYY (też 2-cyfrowy rok)
+  m = s.match(/^(\d{1,2})[-./](\d{1,2})[-./](\d{2,4})$/);
+  if (m){
+    let y = +m[3];
+    if (y < 100) y += (y > 50 ? 1900 : 2000);
+    return validISO(y, +m[2], +m[1]);
+  }
+  return null;
+}
+function validISO(y, mo, d){
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const dt = new Date(y, mo-1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo-1 || dt.getDate() !== d) return null;
+  return toISO(dt);
+}
+
+/* =====================================================================
+   PERSYSTENCJA (localStorage)
+   ===================================================================== */
+function load(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw){
+      const data = JSON.parse(raw);
+      state.cycles = Array.isArray(data.cycles) ? data.cycles : [];
+    }
+  }catch(e){
+    console.warn('Nie udało się wczytać danych:', e);
+    state = { cycles: [] };
+  }
+}
+function save(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }catch(e){
+    console.error('Nie udało się zapisać danych:', e);
+    alert('Nie udało się zapisać danych w pamięci przeglądarki.');
+  }
+}
+
+/* =====================================================================
+   POMOCNICZE MATEMATYCZNE
+   ===================================================================== */
+function avg(arr){ return arr.reduce((s,v)=>s+v,0) / arr.length; }
+function median(arr){
+  const s = [...arr].sort((a,b)=>a-b);
+  const mid = Math.floor(s.length/2);
+  return s.length % 2 ? s[mid] : (s[mid-1] + s[mid]) / 2;
+}
+function weightedMean(arr){
+  // arr: od najstarszego do najnowszego — nowsze mają większą wagę
+  let sum = 0, wsum = 0;
+  arr.forEach((v,i)=>{ const w = i + 1; sum += v * w; wsum += w; });
+  return sum / wsum;
+}
+function stdDev(arr){
+  const m = avg(arr);
+  return Math.sqrt(arr.reduce((s,v)=> s + (v-m)*(v-m), 0) / arr.length);
+}
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function escapeHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* =====================================================================
+   ALGORYTM PROGNOZY
+   ===================================================================== */
+function analyze(){
+  const cycles = [...state.cycles].sort((a,b)=> a.start.localeCompare(b.start));
+  const res = {
+    cycles,
+    hasData: cycles.length > 0,
+    hasCycleData: false,
+    hasPeriodData: false,
+    avgCycle: 28,
+    avgPeriod: 5,
+    sd: 0,
+    validLengths: [],
+    lastStart: cycles.length ? cycles[cycles.length-1].start : null
+  };
+  if (!cycles.length) return res;
+
+  // --- średnia długość krwawienia ---
+  const periodLens = cycles
+    .map(c => c.end ? daysBetween(c.start, c.end) + 1 : null)
+    .filter(n => n && n > 0 && n <= 15);
+  if (periodLens.length){
+    res.avgPeriod = Math.round(avg(periodLens));
+    res.hasPeriodData = true;
+  }
+
+  // --- długości cykli (odstępy między kolejnymi startami) ---
+  const rawLengths = [];
+  for (let i = 1; i < cycles.length; i++){
+    rawLengths.push(daysBetween(cycles[i-1].start, cycles[i].start));
+  }
+  const valid = rawLengths.filter(l => l >= 15 && l <= 60);
+  res.validLengths = valid;
+
+  if (valid.length){
+    res.avgCycle = Math.round(weightedMean(valid));  // średnia ważona (nowsze cykle ważą więcej)
+    res.sd = stdDev(valid);
+    res.hasCycleData = true;
+  } else if (rawLengths.length){
+    res.avgCycle = Math.round(median(rawLengths));   // awaryjnie: mediana
+  }
+
+  return res;
+}
+
+function regularityText(sd){
+  if (sd <= 2) return 'Cykl bardzo regularny — prognoza powinna być dokładna.';
+  if (sd <= 4) return 'Cykl regularny — prognoza jest wiarygodna.';
+  if (sd <= 7) return 'Cykl umiarkowanie regularny — możliwe niewielkie odchylenia.';
+  return 'Cykl nieregularny — prognoza może być mało dokładna.';
+}
+
+/* =====================================================================
+   INICJALIZACJA
+   ===================================================================== */
+document.addEventListener('DOMContentLoaded', init);
+
+function init(){
+  load();
+  buildSymptomChips();
+  bindTabs();
+  bindForm();
+  bindDataTab();
+  document.getElementById('startDate').value = todayISO();
+  renderAll();
+}
+
+function buildSymptomChips(){
+  const wrap = document.getElementById('symptomChips');
+  wrap.innerHTML = SYMPTOMS.map(s => `
+    <label class="chip">
+      <input type="checkbox" value="${escapeHtml(s)}">
+      <span>${escapeHtml(s)}</span>
+    </label>
+  `).join('');
+}
+
+function bindTabs(){
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+      document.querySelectorAll('.panel').forEach(p => {
+        p.classList.toggle('active', p.id === 'panel-' + tab.dataset.tab);
+      });
+      if (tab.dataset.tab === 'forecast' || tab.dataset.tab === 'history') renderAll();
+    });
+  });
+}
+
+/* =====================================================================
+   FORMULARZ
+   ===================================================================== */
+function bindForm(){
+  const form = document.getElementById('cycleForm');
+  const cancelBtn = document.getElementById('cancelEdit');
+
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+
+    const start = document.getElementById('startDate').value;
+    const end   = document.getElementById('endDate').value || null;
+    const flow  = document.getElementById('flow').value;
+    const notes = document.getElementById('notes').value.trim();
+    const symptoms = [...document.querySelectorAll('#symptomChips input:checked')].map(i => i.value);
+
+    if (!start) return showFormMsg('Podaj datę rozpoczęcia cyklu.', 'error');
+    if (end && daysBetween(start, end) < 0)
+      return showFormMsg('Data zakończenia nie może być wcześniejsza niż data rozpoczęcia.', 'error');
+    if (end && daysBetween(start, end) > 14)
+      return showFormMsg('Krwawienie dłuższe niż 15 dni — sprawdź wprowadzone daty.', 'error');
+
+    const duplicate = state.cycles.find(c => c.start === start && c.id !== editingId);
+    if (duplicate)
+      return showFormMsg('Cykl z tą datą rozpoczęcia już istnieje.', 'error');
+
+    if (editingId){
+      const c = state.cycles.find(x => x.id === editingId);
+      if (c) Object.assign(c, { start, end, flow, notes, symptoms });
+      editingId = null;
+      showFormMsg('✔ Cykl został zaktualizowany.', 'ok');
+    } else {
+      state.cycles.push({ id: uid(), start, end, flow, notes, symptoms });
+      showFormMsg('✔ Cykl został zapisany.', 'ok');
+    }
+
+    save();
+    renderAll();
+    resetFormUI();
+    form.reset();
+    document.getElementById('startDate').value = todayISO();
+  });
+
+  cancelBtn.addEventListener('click', () => {
+    editingId = null;
+    form.reset();
+    document.getElementById('startDate').value = todayISO();
+    resetFormUI();
+    showFormMsg('', '');
+  });
+}
+
+function showFormMsg(text, type){
+  const el = document.getElementById('formMsg');
+  el.textContent = text;
+  el.className = 'msg' + (type ? ' ' + type : '');
+}
+
+function resetFormUI(){
+  document.getElementById('formTitle').textContent = 'Dodaj nowy cykl';
+  document.getElementById('cancelEdit').hidden = true;
+}
+
+function startEdit(id){
+  const c = state.cycles.find(x => x.id === id);
+  if (!c) return;
+  editingId = id;
+
+  document.getElementById('startDate').value = c.start;
+  document.getElementById('endDate').value   = c.end || '';
+  document.getElementById('flow').value      = c.flow || '';
+  document.getElementById('notes').value     = c.notes || '';
+  document.querySelectorAll('#symptomChips input').forEach(inp => {
+    inp.checked = (c.symptoms || []).includes(inp.value);
+  });
+
+  document.getElementById('formTitle').textContent = 'Edytuj cykl';
+  document.getElementById('cancelEdit').hidden = false;
+  showFormMsg('', '');
+  document.querySelector('.tab[data-tab="add"]').click();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function deleteCycle(id){
+  const c = state.cycles.find(x => x.id === id);
+  if (!c) return;
+  if (!confirm(`Usunąć cykl z dnia ${fmt(c.start)}?`)) return;
+
+  state.cycles = state.cycles.filter(x => x.id !== id);
+  if (editingId === id){ editingId = null; resetFormUI(); }
+  save();
+  renderAll();
+}
+
+/* =====================================================================
+   RENDEROWANIE
+   ===================================================================== */
+function renderAll(){
+  renderHistory();
+  renderForecast();
+}
+
+/* ---------- Historia ---------- */
+function renderHistory(){
+  const list = document.getElementById('historyList');
+  const countEl = document.getElementById('historyCount');
+  const desc = [...state.cycles].sort((a,b) => b.start.localeCompare(a.start));
+
+  countEl.textContent = desc.length
+    ? `Zapisanych cykli: ${desc.length}`
+    : '';
+
+  if (!desc.length){
+    list.innerHTML = '<p class="empty">Brak zapisanych cykli. Dodaj pierwszy cykl albo zaimportuj historię w zakładce „Import / Eksport”.</p>';
+    return;
+  }
+
+  // długości cykli (odstęp do następnego startu)
+  const asc = [...state.cycles].sort((a,b) => a.start.localeCompare(b.start));
+  const lenMap = {};
+  for (let i = 0; i < asc.length - 1; i++){
+    lenMap[asc[i].id] = daysBetween(asc[i].start, asc[i+1].start);
+  }
+
+  list.innerHTML = desc.map(c => {
+    const periodLen = c.end ? daysBetween(c.start, c.end) + 1 : null;
+    const cycleLen = lenMap[c.id];
+
+    const badges = [];
+    if (periodLen) badges.push(`<span class="badge">Krwawienie: ${periodLen} ${plural(periodLen,'dzień','dni','dni')}</span>`);
+    if (cycleLen) badges.push(`<span class="badge">Cykl: ${cycleLen} ${plural(cycleLen,'dzień','dni','dni')}</span>`);
+    if (c.flow) badges.push(`<span class="badge">${escapeHtml(c.flow)}</span>`);
+
+    return `
+      <div class="cycle-item">
+        <div class="cycle-main">
+          <div class="cycle-date">${fmt(c.start)}${c.end ? ' → ' + fmt(c.end) : ''}</div>
+          ${badges.length ? `<div class="cycle-meta">${badges.join('')}</div>` : ''}
+          ${(c.symptoms && c.symptoms.length) ? `<div class="cycle-symptoms">${c.symptoms.map(escapeHtml).join(' · ')}</div>` : ''}
+          ${c.notes ? `<div class="cycle-notes">„${escapeHtml(c.notes)}”</div>` : ''}
+        </div>
+        <div class="cycle-actions">
+          <button class="btn small" data-edit="${c.id}">Edytuj</button>
+          <button class="btn small danger" data-del="${c.id}">Usuń</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  list.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => startEdit(b.dataset.edit));
+  list.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteCycle(b.dataset.del));
+}
+
+/* ---------- Prognoza ---------- */
+function renderForecast(){
+  const el = document.getElementById('forecastContent');
+  const a = analyze();
+  const today = todayISO();
+
+  if (!a.hasData){
+    el.innerHTML = `
+      <div class="card">
+        <h2>Prognoza</h2>
+        <p class="empty">Brak danych. Dodaj co najmniej dwa cykle (lub zaimportuj historię), aby obliczyć prognozę.</p>
+      </div>`;
+    return;
+  }
+
+  /* --- statystyki --- */
+  const statsHtml = `
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-value">${a.hasCycleData ? a.avgCycle : '—'}</span>
+        <span class="stat-label">średnia długość cyklu (dni)</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value">${a.avgPeriod}</span>
+        <span class="stat-label">krwawienie (dni)${a.hasPeriodData ? '' : ' — domyślnie'}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value">${a.hasCycleData ? a.sd.toFixed(1) : '—'}</span>
+        <span class="stat-label">odchylenie standardowe</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value">${a.cycles.length}</span>
+        <span class="stat-label">cykli w bazie</span>
+      </div>
+    </div>`;
+
+  /* --- status "teraz" --- */
+  let statusHtml = '';
+  if (a.lastStart){
+    const nextStart = addDays(a.lastStart, a.avgCycle);
+    const daysToNext = daysBetween(today, nextStart);
+    const cycleDay = daysBetween(a.lastStart, today) + 1;
+    const ovu = addDays(nextStart, -14);
+
+    let line;
+    if (daysToNext > 0){
+      line = `Następna miesiączka: <strong>${fmt(nextStart)}</strong> — za ${daysToNext} ${plural(daysToNext,'dzień','dni','dni')}.`;
+    } else if (daysToNext === 0){
+      line = `Miesiączka spodziewana <strong>dziś</strong> (${fmt(nextStart)}).`;
+    } else {
+      const late = Math.abs(daysToNext);
+      line = `Miesiączka spodziewana była ${fmt(nextStart)} — ${late} ${plural(late,'dzień','dni','dni')} temu. Możliwe opóźnienie.`;
+    }
+
+    statusHtml = `
+      <div class="card highlight">
+        <h3>Teraz</h3>
+        <p>Dzień cyklu: <strong>${cycleDay}</strong>${cycleDay < 1 ? ' <span class="muted small">(data ostatniego cyklu jest w przyszłości)</span>' : ''}</p>
+        <p>${line}</p>
+        <p class="muted small">
+          Przewidywane okno płodne: <strong>${fmt(addDays(ovu,-5))} – ${fmt(addDays(ovu,1))}</strong>
+          &nbsp;·&nbsp; owulacja ok. <strong>${fmt(ovu)}</strong>
+        </p>
+      </div>`;
+  }
+
+  /* --- tabela prognoz --- */
+  let tableHtml;
+  if (a.hasCycleData){
+    const rows = [];
+    for (let i = 1; i <= 6; i++){
+      const start = addDays(a.lastStart, a.avgCycle * i);
+      const end   = addDays(start, a.avgPeriod - 1);
+      const ovu   = addDays(start, -14);
+      const unc   = Math.round(a.sd * Math.sqrt(i)); // niepewność rośnie z każdym cyklem
+      rows.push(`
+        <tr>
+          <td>${i}</td>
+          <td><strong>${fmt(start)}</strong></td>
+          <td>${fmt(end)}</td>
+          <td>${fmt(addDays(ovu,-5))} – ${fmt(addDays(ovu,1))}</td>
+          <td>${unc > 0 ? '± ' + unc + ' dni' : '—'}</td>
+        </tr>`);
+    }
+    tableHtml = `
+      <div class="card">
+        <h2>Prognoza 6 kolejnych cykli</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Start miesiączki</th>
+                <th>Koniec</th>
+                <th>Okno płodne</th>
+                <th>Niepewność</th>
+              </tr>
+            </thead>
+            <tbody>${rows.join('')}</tbody>
+          </table>
+        </div>
+      </div>`;
+  } else {
+    tableHtml = `
+      <div class="card">
+        <p class="empty">Potrzebne są co najmniej dwa cykle, aby wyznaczyć długość cyklu i obliczyć prognozę.</p>
+      </div>`;
+  }
+
+  /* --- regularność --- */
+  const regHtml = a.hasCycleData ? `
+    <div class="card">
+      <h2>Regularność</h2>
+      <p>${regularityText(a.sd)}</p>
+      <p class="muted small">Na podstawie ${a.validLengths.length} ${plural(a.validLengths.length,'zmierzonego cyklu','zmierzonych cykli','zmierzonych cykli')} (odchylenie standardowe: ${a.sd.toFixed(1)} dni).</p>
+    </div>` : '';
+
+  /* --- wyjaśnienie algorytmu --- */
+  const algoHtml = `
+    <div class="card">
+      <h2>Jak działa algorytm?</h2>
+      <p class="muted small">
+        <strong>1.</strong> Długość cyklu = liczba dni między kolejnymi datami rozpoczęcia miesiączki.<br>
+        <strong>2.</strong> Wartości skrajne (poniżej 15 lub powyżej 60 dni) są odrzucane jako nietypowe.<br>
+        <strong>3.</strong> Średnia długość cyklu liczona jest jako <strong>średnia ważona</strong> — im nowszy cykl, tym większy ma wpływ na prognozę.<br>
+        <strong>4.</strong> Odchylenie standardowe określa regularność i steruje kolumną „Niepewność” (rośnie wraz z każdym kolejnym przewidywanym cyklem).<br>
+        <strong>5.</strong> Owulacja szacowana jest na ok. 14 dni przed przewidywanym startem miesiączki, a okno płodne na 5 dni przed i 1 dzień po niej.
+      </p>
+    </div>`;
+
+  el.innerHTML = statsHtml + statusHtml + tableHtml + regHtml + algoHtml;
+}
+
+/* =====================================================================
+   IMPORT / EKSPORT
+   ===================================================================== */
+function bindDataTab(){
+  document.getElementById('importBtn').addEventListener('click', () => {
+    const text = document.getElementById('importText').value;
+    if (!text.trim()) return showImportMsg('Wklej najpierw jakieś dane.', 'error');
+
+    const { cycles, errors } = parseImportText(text);
+    if (!cycles.length){
+      return showImportMsg('Nie rozpoznano żadnej daty. Sprawdź format danych.', 'error');
+    }
+    const { added, skipped } = importCycles(cycles);
+    let msg = `✔ Zaimportowano ${added} ${plural(added,'cykl','cykle','cykli')}.`;
+    if (skipped) msg += ` Pominięto ${skipped} ${plural(skipped,'duplikat','duplikaty','duplikatów')}.`;
+    if (errors.length) msg += ` Błędy w ${errors.length} ${plural(errors.length,'wierszu','wierszach','wierszach')}.`;
+    showImportMsg(msg, errors.length ? 'warn' : 'ok');
+    if (errors.length) console.warn('Błędy importu:', errors);
+    document.getElementById('importText').value = '';
+  });
+
+  document.getElementById('fileInput').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => handleFileContent(ev.target.result, file.name);
+    reader.onerror = () => showImportMsg('Nie udało się odczytać pliku.', 'error');
+    reader.readAsText(file, 'UTF-8');
+    e.target.value = '';
+  });
+
+  document.getElementById('exportJson').addEventListener('click', () => {
+    if (!state.cycles.length) return showImportMsg('Brak danych do eksportu.', 'error');
+    const payload = { exportedAt: new Date().toISOString(), version: 1, cycles: state.cycles };
+    download('cykle.json', JSON.stringify(payload, null, 2), 'application/json');
+    showImportMsg('✔ Wyeksportowano plik JSON.', 'ok');
+  });
+
+  document.getElementById('exportCsv').addEventListener('click', () => {
+    if (!state.cycles.length) return showImportMsg('Brak danych do eksportu.', 'error');
+    const esc = v => {
+      v = String(v ?? '');
+      return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    };
+    const rows = [['start','end','flow','notes','symptoms'].join(';')];
+    [...state.cycles]
+      .sort((a,b) => a.start.localeCompare(b.start))
+      .forEach(c => rows.push([
+        c.start, c.end || '', c.flow || '', c.notes || '', (c.symptoms || []).join('|')
+      ].map(esc).join(';')));
+    download('cykle.csv', '\uFEFF' + rows.join('\r\n'), 'text/csv;charset=utf-8');
+    showImportMsg('✔ Wyeksportowano plik CSV.', 'ok');
+  });
+
+  document.getElementById('clearAll').addEventListener('click', () => {
+    if (!state.cycles.length) return showImportMsg('Baza jest już pusta.', 'warn');
+    if (!confirm('Na pewno usunąć WSZYSTKIE zapisane cykle? Tej operacji nie można cofnąć.')) return;
+    state.cycles = [];
+    editingId = null;
+    resetFormUI();
+    save();
+    renderAll();
+    showImportMsg('✔ Wszystkie dane zostały usunięte.', 'ok');
+  });
+}
+
+function showImportMsg(text, type){
+  const el = document.getElementById('importMsg');
+  el.textContent = text;
+  el.className = 'msg' + (type ? ' ' + type : '');
+}
+
+/* --- parsowanie tekstu (jedna linia = jeden cykl) --- */
+function parseImportText(text){
+  const lines = text.split(/\r?\n/);
+  const out = [];
+  const errors = [];
+
+  lines.forEach((raw, idx) => {
+    const line = raw.trim();
+    if (!line) return;
+
+    const parts = line.split(/[;,\t]/).map(p => p.trim()).filter(Boolean);
+    const dates = [];
+    const rest = [];
+
+    parts.forEach(p => {
+      const d = parseDateStr(p);
+      if (d && dates.length < 2) dates.push(d);
+      else rest.push(p);
+    });
+
+    if (!dates.length){
+      if (idx === 0 && /[a-ząćęłńóśźż]/i.test(line)) return; // nagłówek
+      errors.push(`Wiersz ${idx+1}: nie rozpoznano daty — "${line}"`);
+      return;
+    }
+
+    let flow = '';
+    const notesParts = [];
+    rest.forEach(p => {
+      const key = p.toLowerCase();
+      if (FLOW_MAP[key] && !flow) flow = FLOW_MAP[key];
+      else notesParts.push(p);
+    });
+
+    out.push({
+      start: dates[0],
+      end: dates[1] || null,
+      flow,
+      notes: notesParts.join(' '),
+      symptoms: []
+    });
+  });
+
+  return { cycles: out, errors };
+}
+
+/* --- obsługa pliku (JSON lub tekst/CSV) --- */
+function handleFileContent(text, filename){
+  let imported = null;
+
+  try{
+    const data = JSON.parse(text);
+    const arr = Array.isArray(data) ? data : (data.cycles || []);
+    if (Array.isArray(arr) && arr.length){
+      imported = arr.map(c => ({
+        start: normalizeISO(c.start || c.data || c.date || c.poczatek),
+        end: normalizeISO(c.end || c.koniec || null),
+        flow: c.flow || c.intensywnosc || '',
+        notes: c.notes || c.notatki || '',
+        symptoms: Array.isArray(c.symptoms) ? c.symptoms : []
+      })).filter(c => c.start);
+    }
+  }catch(e){ /* to nie JSON — spróbujemy jako tekst */ }
+
+  if (!imported || !imported.length){
+    const parsed = parseImportText(text);
+    imported = parsed.cycles;
+    if (!imported.length){
+      return showImportMsg(`Nie udało się odczytać pliku „${filename}”. Sprawdź format danych.`, 'error');
+    }
+  }
+
+  const { added, skipped } = importCycles(imported);
+  let msg = `✔ Zaimportowano ${added} ${plural(added,'cykl','cykle','cykli')} z pliku „${filename}”.`;
+  if (skipped) msg += ` Pominięto ${skipped} ${plural(skipped,'duplikat','duplikaty','duplikatów')}.`;
+  showImportMsg(msg, 'ok');
+}
+
+function normalizeISO(v){
+  if (!v) return null;
+  const s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  return parseDateStr(s);
+}
+
+function importCycles(list){
+  let added = 0, skipped = 0;
+  list.forEach(c => {
+    if (!c.start) return;
+    if (state.cycles.some(x => x.start === c.start)){ skipped++; return; }
+    state.cycles.push({
+      id: uid(),
+      start: c.start,
+      end: c.end || null,
+      flow: c.flow || '',
+      notes: c.notes || '',
+      symptoms: c.symptoms || []
+    });
+    added++;
+  });
+  if (added){ save(); renderAll(); }
+  return { added, skipped };
+}
+
+function download(filename, content, type){
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+</script>
+</body>
+</html>
